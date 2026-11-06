@@ -1,5 +1,7 @@
 # Repository guidance
 
+<!-- Installed as AGENTS.md in a FreeBSD source checkout. -->
+
 This repository is the FreeBSD base system source tree, not the ports tree.
 Keep changes focused on the requested subsystem and follow nearby code and
 build conventions. Read any applicable nested `AGENTS.md` before editing.
@@ -111,25 +113,3 @@ as a routine check for a small change.
 - Report what was tested, the relevant configuration, and results. State
   unavailable checks and remaining limitations explicitly; a successful
   compile alone does not establish runtime correctness.
-
-## Git
-
-- Work on `main` unless the user explicitly asks for a different branch.
-- Treat references to `master` as `main` in this repository.
-- Do not create branches unless the user explicitly asks for one.
-- Do not rewrite pushed `main` history unless the user explicitly asks for it.
-- Commit messages must include a body when the product intent is not obvious.
-- Keep commit subject lines at 50 characters or fewer when practical.
-- Every commit-message line must be 72 characters or fewer.
-- Commit bodies should explain:
-  - user-facing behavior,
-  - product/demo boundary,
-  - why the change exists,
-  - important implementation constraints,
-  - validation performed.
-- Write every complete commit message to a task-specific temporary file.
-- Check the temporary file for lines longer than 72 characters before
-  committing.
-- Create commits with `git commit -F <temporary-file>`. Do not construct
-  multi-line commit messages with repeated `-m` arguments.
-- Use the same temporary-file and `-F` workflow when amending commits.
