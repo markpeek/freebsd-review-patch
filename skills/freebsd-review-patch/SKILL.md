@@ -1,6 +1,7 @@
 ---
 name: freebsd-review-patch
 description: Review FreeBSD Differential reviews from reviews.freebsd.org or GitHub pull requests in freebsd/freebsd-src against the current FreeBSD source checkout. Accept a D-number, PR number, or review/PR URL when asked to find bugs, regressions, or integration problems.
+argument-hint: "[D-number | PR #number | review/PR URL]"
 ---
 
 # FreeBSD review patch
