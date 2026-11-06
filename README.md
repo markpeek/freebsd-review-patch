@@ -4,8 +4,9 @@ Repository guidance and a skill for Codex and Claude Code for reviewing
 Differential reviews from reviews.freebsd.org and GitHub pull requests in
 `freebsd/freebsd-src` against a local FreeBSD source checkout.
 
-- [AGENTS.md](AGENTS.md) provides guidance for working in the FreeBSD base
-  system source tree.
+- [AGENTS.md](AGENTS.md) provides guidance for working in this repository.
+- [AGENTS-SRC.md](AGENTS-SRC.md) provides guidance for working in the
+  FreeBSD base system source tree, where it is installed as `AGENTS.md`.
 - [freebsd-review-patch](skills/freebsd-review-patch/SKILL.md) describes how
   to fetch and review patches from either source and report actionable
   findings.
@@ -17,14 +18,14 @@ Differential reviews from reviews.freebsd.org and GitHub pull requests in
 Run these commands from this repository's root. Replace
 `/path/to/freebsd-src` with the root of your FreeBSD source checkout.
 
-Copy `AGENTS.md` into the FreeBSD source tree:
+Copy `AGENTS-SRC.md` into the FreeBSD source tree as `AGENTS.md`:
 
 ```sh
-cp -i AGENTS.md /path/to/freebsd-src/AGENTS.md
+cp -i AGENTS-SRC.md /path/to/freebsd-src/AGENTS.md
 ```
 
-If the checkout already has an `AGENTS.md`, merge the guidance you need
-into that file before replacing it.
+If the checkout already has an `AGENTS.md`, merge the relevant guidance
+from `AGENTS-SRC.md` into that file.
 
 ### Codex
 
