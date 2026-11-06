@@ -1,0 +1,4 @@
+interface:
+  display_name: "FreeBSD Patch Review"
+  short_description: "Review a FreeBSD Differential patch against this tree"
+  default_prompt: "Use $freebsd-review-patch to review D12345 against the current FreeBSD source tree."
