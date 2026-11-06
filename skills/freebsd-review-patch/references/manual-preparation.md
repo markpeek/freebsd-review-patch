@@ -135,6 +135,9 @@ current tree, not just the diff hunks.
   workspace for line-accurate inspection or testing. Leave the user's
   checkout and index unchanged. Any snapshot used for testing must preserve
   relevant local modifications; a HEAD-only snapshot is a different baseline.
+  Record content hashes for proposed files (hash symlink target text without
+  following links) and verify the file inventory and hashes before and after
+  reusing a snapshot. Re-prepare if any files have changed, appeared, or vanished.
 - If it fails, distinguish path-strip mistakes, missing parent revisions,
   code drift, local modifications, and changes already present. A reverse
   apply check and targeted `git log`, `git show`, or `git blame` can help,

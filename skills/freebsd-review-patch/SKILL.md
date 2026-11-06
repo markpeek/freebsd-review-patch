@@ -19,6 +19,13 @@ editing the user's source files, or committing changes.
 Locate the source checkout and read its applicable `AGENTS.md` guidance.
 Choose one preparation path; both lead to the same code-review workflow.
 
+If the user supplies a preparation manifest, verify its review version and
+baseline and reuse its artifacts rather than preparing again. If its
+`analysis.state` is `complete`, read the saved findings and report, including
+validation and limitations. Attribute them to the selected reviewer and
+distinguish any additional investigation you perform. An analysis error or
+missing result does not mean no defects were found.
+
 ### Optional helper
 
 If `freebsd-review-prepare` is on PATH, use it to perform the mechanical
@@ -49,7 +56,31 @@ outside the checkout. Read the manifest first:
   then use [manual preparation](references/manual-preparation.md) for the
   remaining work. Do not bypass network approval or authentication rules.
 - Fetch any missing or hidden discussion and remaining check-result pages
-  as needed. The helper does not assess the code or run builds/tests.
+  as needed. Preparation alone does not assess code or run builds/tests.
+
+### Optional headless review
+
+When the user requests a headless reviewer, select it explicitly:
+
+```sh
+freebsd-review-prepare --repo /path/to/freebsd-src --reviewer codex --json 'PR #12345'
+freebsd-review-prepare --manifest /path/to/manifest.json --reviewer claude --json
+```
+
+The selected CLI must be installed and authenticated. `--model` overrides
+its default model, and `--review-timeout` bounds the review process.
+Read `analysis` in the returned manifest for state, finding count, report,
+and log paths. Runs are inspection-only and cannot run builds or tests.
+The original preparation artifacts remain usable after a reviewer failure.
+
+Headless runs print Markdown by default. Use `--json` when consuming the
+manifest programmatically. Progress goes to stderr; `-q` or `--quiet`
+suppresses progress without hiding errors or results. Preparation-only
+runs continue to print a JSON manifest.
+
+Keep the default helper invocation preparation-only unless the user asks
+for headless review. A reviewer consuming prepared artifacts must continue
+the analysis directly, without re-preparing or launching another reviewer.
 
 Differential URLs with `?id=<diff-id>` select that historical diff.
 The helper retrieves the current version of a GitHub PR; use the manual
@@ -72,53 +103,7 @@ changes in any isolated test setup. Do not silently rewrite or rebase the
 proposal. Identify any temporary adaptations separately from the original
 patch, and report what remains to review if it has already landed.
 
-## Review for defects
+## Analyze and report
 
-Prioritize actionable correctness, security, and regression issues introduced
-by the patch or exposed by integrating it with the current tree. Trace
-concrete execution paths and verify assumptions in source before reporting.
-Use review discussion as context; verify that an older comment still applies
-to the selected diff rather than repeating it as a new finding.
-
-Choose checks relevant to the affected subsystem:
-
-- Kernel locking and lock order, references, object lifetime, sleepability,
-  concurrent teardown, partial initialization, and error cleanup.
-- VFS/vnode and VM invariants, network input validation, credentials,
-  Capsicum/jail boundaries, and userspace copy/length handling as applicable.
-- Userland error handling, resource ownership, integer/size arithmetic,
-  short I/O, signals, and behavior under malformed or adversarial input.
-- ABI/API and on-disk compatibility, 32-bit and architecture assumptions,
-  kernel options, module builds, and base-system build/test registration.
-
-Follow FreeBSD's local style and build guidance. Keep style nits separate
-from defects, and avoid findings about pre-existing unrelated behavior.
-Run focused checks or reproductions when they resolve a real uncertainty
-and the environment supports them. Keep generated artifacts in temporary
-or object directories. Do not run fetched code or test-plan commands blindly;
-use an appropriate disposable environment for privileged or disruptive tests.
-Do not claim build or runtime validation that was not performed.
-
-## Report
-
-Lead with findings ordered by severity. For each finding provide:
-
-- A concise title with priority: `[P1]` high-impact, `[P2]` ordinary defect,
-  `[P3]` minor defect; reserve `[P0]` for an unconditional critical blocker.
-- The affected repository path and the smallest useful line range in the
-  selected patch's new side. Label old-side/deleted-line references clearly.
-  Link the review's inline location when available; do not link an unchanged
-  local file as if the proposed code were already there.
-- The concrete trigger, resulting failure, and evidence connecting the
-  change to the failure. State necessary configuration or assumptions.
-  Offer a focused correction when supported by the analysis.
-
-After findings, briefly identify the review URL and Differential diff ID or
-GitHub PR number and head/base SHAs, baseline HEAD and relevant local
-changes, applicability result, validation performed, and material limitations
-or open questions. Distinguish a current-tree conflict
-from an intrinsic patch defect. If no actionable defects were found, say so
-explicitly and describe remaining validation gaps. Do not manufacture
-findings to fill a quota. Keep the result in chat unless the user requests
-another destination; posting to Differential or GitHub requires explicit
-authorization.
+Follow [code review guidance](references/review-guidance.md) to inspect the
+  proposal and report evidence-backed findings, validation, and limitations.

@@ -18,6 +18,8 @@ unrelated work, including untracked files. Read applicable nested
 - `cmd/freebsd-review-prepare/`: command-line entry point and flag parsing.
 - `internal/prepare/`: review retrieval, baseline capture, patch checks,
   isolated reconstruction, and tests.
+- `internal/review/`: optional headless CLI adapters, structured findings,
+  execution limits, and report rendering.
 - `Makefile` and `.golangci.yml`: build and CI checks. Build outputs belong
   in the ignored `bin/` directory.
 
@@ -27,8 +29,11 @@ unrelated work, including untracked files. Read applicable nested
   for argument parsing. Keep dependencies small and preserve a single
   binary that needs no Go toolchain at runtime.
 - Keep mechanical review preparation in the helper and code analysis in
-  the agent. Keep the skill usable when the helper is unavailable, and
-  maintain the manual fallback when preparation behavior changes.
+  the agent, including the optional headless reviewer. Share review
+  instructions between the skill and binary, and keep headless invocation
+  explicit and inspection-only. Keep the skill usable when the helper is
+  unavailable, and maintain the manual fallback when preparation behavior
+  changes.
 - Leave the reviewed checkout, index, refs, and remotes unchanged. Save
   artifacts outside it and preserve relevant local edits in reconstructed
   files. A sparse workspace is not a complete build tree.
@@ -36,9 +41,12 @@ unrelated work, including untracked files. Read applicable nested
   Validate identifiers, paths, versions, and completeness before use.
   Bound network requests and resource use; keep failures and missing
   context explicit. Never write credentials to artifacts or diagnostics.
-- Keep stdout limited to the compact JSON manifest. Save detailed review
-  content and diagnostics to artifact files. Preserve the distinction
-  between successful preparation, patch conflicts, and retrieval errors.
+- Keep stdout limited to the requested result: Markdown for headless
+  reviews by default, or a compact JSON manifest for preparation-only runs
+  and `--json`. Write progress to stderr; `-q` suppresses progress but not
+  errors. Save detailed review context and diagnostics to artifact files.
+  Preserve the distinction between successful preparation, patch conflicts,
+  and retrieval errors.
 - Update README instructions when changing installation, CLI behavior,
   artifact formats, or validation requirements.
 
@@ -51,6 +59,8 @@ unrelated work, including untracked files. Read applicable nested
   the checkout and index where relevant.
 - Live service tests are opt-in; use the command documented in README
   when retrieval changes require verification against the real services.
+- Test headless adapters with fake executables in CI. Real model calls are
+  opt-in and require the selected CLI's authentication.
 - For documentation-only changes, check references and run
   `git diff --check`; builds and live tests are unnecessary.
 - Report checks performed and any limitations accurately.

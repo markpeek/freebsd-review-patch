@@ -95,6 +95,7 @@ func (r *runner) github() error {
 	endpoint := githubAPI + "/pulls/" + r.m.Review.ID
 	var chosen pullRequest
 	for attempt := 0; attempt < 3; attempt++ {
+		r.progress(fmt.Sprintf("Fetching GitHub PR #%s metadata and diff (attempt %d/3)...", r.m.Review.ID, attempt+1))
 		before, metadata, err := r.getPull(endpoint)
 		if err != nil {
 			return err
@@ -154,6 +155,7 @@ func (r *runner) github() error {
 		{"commits.json", endpoint + "/commits"},
 	}
 	for _, item := range lists {
+		r.progress("Fetching GitHub review context: " + item.name)
 		items, err := r.list(item.endpoint, 30)
 		if err != nil {
 			r.m.Warnings = append(r.m.Warnings, item.name+": "+err.Error())
@@ -170,6 +172,7 @@ func (r *runner) github() error {
 		{"checks.json", githubAPI + "/commits/" + chosen.Head.SHA + "/check-runs?per_page=100"},
 		{"statuses.json", githubAPI + "/commits/" + chosen.Head.SHA + "/status?per_page=100"},
 	} {
+		r.progress("Fetching GitHub check results: " + item.name)
 		data, headers, err := r.get(item.endpoint, "application/vnd.github+json")
 		if err != nil {
 			r.m.Warnings = append(r.m.Warnings, item.name+": "+err.Error())
@@ -253,6 +256,7 @@ func (r *runner) differential() error {
 		return err
 	}
 	review := &r.m.Review
+	r.progress("Fetching Differential review " + review.ID + "...")
 	pageURL := review.URL
 	if review.DiffID != "" {
 		pageURL += "?id=" + review.DiffID
@@ -279,6 +283,7 @@ func (r *runner) differential() error {
 		return err
 	}
 	query := url.Values{"id": {diffID}, "download": {"true"}}
+	r.progress("Downloading Differential diff " + diffID + "...")
 	diff, _, err := r.get(review.URL+"?"+query.Encode(), "text/plain")
 	if err != nil {
 		return err

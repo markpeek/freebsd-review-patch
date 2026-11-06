@@ -29,6 +29,7 @@ type Config struct {
 	Snapshot    bool
 	GitHubToken string
 	Client      *http.Client
+	Progress    func(string)
 }
 
 type Review struct {
@@ -52,24 +53,46 @@ type Baseline struct {
 // Manifest deliberately omits source, patch, description, and comment contents.
 // They are untrusted input and can be large; read the saved artifacts as needed.
 type Manifest struct {
-	Schema        int      `json:"schema"`
-	State         string   `json:"state"`
-	Directory     string   `json:"directory"`
-	ManifestPath  string   `json:"manifest_path"`
-	Review        Review   `json:"review"`
-	Baseline      Baseline `json:"baseline"`
-	RetrievedAt   string   `json:"retrieved_at,omitempty"`
-	Patch         string   `json:"patch_path,omitempty"`
-	SHA256        string   `json:"sha256,omitempty"`
-	Context       string   `json:"context_path,omitempty"`
-	Files         string   `json:"files_path,omitempty"`
-	FileCount     int      `json:"file_count"`
-	Strip         int      `json:"strip"`
-	Applicability string   `json:"applicability"`
-	Diagnostics   string   `json:"diagnostics_path,omitempty"`
-	Workspace     string   `json:"workspace_path,omitempty"`
-	Warnings      []string `json:"warnings,omitempty"`
-	Error         string   `json:"error,omitempty"`
+	Schema         int                      `json:"schema"`
+	State          string                   `json:"state"`
+	Directory      string                   `json:"directory"`
+	ManifestPath   string                   `json:"manifest_path"`
+	Review         Review                   `json:"review"`
+	Baseline       Baseline                 `json:"baseline"`
+	RetrievedAt    string                   `json:"retrieved_at,omitempty"`
+	Patch          string                   `json:"patch_path,omitempty"`
+	SHA256         string                   `json:"sha256,omitempty"`
+	Context        string                   `json:"context_path,omitempty"`
+	Files          string                   `json:"files_path,omitempty"`
+	FileCount      int                      `json:"file_count"`
+	Strip          int                      `json:"strip"`
+	Applicability  string                   `json:"applicability"`
+	Diagnostics    string                   `json:"diagnostics_path,omitempty"`
+	Workspace      string                   `json:"workspace_path,omitempty"`
+	WorkspaceFiles map[string]WorkspaceFile `json:"workspace_files"`
+	Warnings       []string                 `json:"warnings,omitempty"`
+	Error          string                   `json:"error,omitempty"`
+	Analysis       *Analysis                `json:"analysis,omitempty"`
+	// Previous lists earlier review attempts, oldest first.
+	Previous []*Analysis `json:"previous_analyses,omitempty"`
+}
+
+// Analysis describes an optional headless review without inlining its content.
+type Analysis struct {
+	State       string `json:"state"`
+	Reviewer    string `json:"reviewer"`
+	Model       string `json:"model,omitempty"`
+	Directory   string `json:"directory"`
+	Prompt      string `json:"prompt_path"`
+	Schema      string `json:"schema_path"`
+	Events      string `json:"events_path"`
+	Diagnostics string `json:"diagnostics_path"`
+	Findings    string `json:"findings_path,omitempty"`
+	Report      string `json:"report_path,omitempty"`
+	Count       *int   `json:"finding_count,omitempty"`
+	StartedAt   string `json:"started_at"`
+	FinishedAt  string `json:"finished_at,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 type runner struct {
@@ -79,11 +102,18 @@ type runner struct {
 	expected []remoteFile
 }
 
+func (r *runner) progress(message string) {
+	if r.cfg.Progress != nil {
+		r.cfg.Progress(message)
+	}
+}
+
 var (
-	dNumber  = regexp.MustCompile(`^D([1-9][0-9]*)$`)
-	prNumber = regexp.MustCompile(`^(?:PR\s*)?#([1-9][0-9]*)$`)
-	digits   = regexp.MustCompile(`^[1-9][0-9]*$`)
-	sha      = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	dNumber   = regexp.MustCompile(`^D([1-9][0-9]*)$`)
+	prNumber  = regexp.MustCompile(`^(?:PR\s*)?#([1-9][0-9]*)$`)
+	digits    = regexp.MustCompile(`^[1-9][0-9]*$`)
+	sha       = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 func parseIdentifier(input string) (Review, error) {
@@ -138,6 +168,7 @@ func Run(ctx context.Context, cfg Config) (manifest *Manifest, resultErr error) 
 	}
 	m := &Manifest{Schema: 1, State: "preparing", Review: review, Applicability: "not_checked"}
 	r := &runner{ctx: ctx, cfg: cfg, m: m}
+	r.progress("Recording the source checkout baseline...")
 	baseline, err := r.baseline()
 	if err != nil {
 		return nil, err
@@ -149,6 +180,7 @@ func Run(ctx context.Context, cfg Config) (manifest *Manifest, resultErr error) 
 	}
 	m.Directory = dir
 	m.ManifestPath = filepath.Join(dir, "manifest.json")
+	r.progress("Saving review artifacts in " + dir)
 	defer func() {
 		if resultErr != nil {
 			m.State = "error"
@@ -183,9 +215,11 @@ func Run(ctx context.Context, cfg Config) (manifest *Manifest, resultErr error) 
 	if err != nil {
 		return m, err
 	}
+	r.progress("Checking patch completeness and applicability...")
 	if err := r.checkPatch(); err != nil {
 		return m, err
 	}
+	r.progress("Verifying that the source checkout is unchanged...")
 	after, err := r.baseline()
 	if err != nil {
 		return m, err
@@ -193,6 +227,7 @@ func Run(ctx context.Context, cfg Config) (manifest *Manifest, resultErr error) 
 	if !baseline.same(after) {
 		return m, errors.New("checkout changed during preparation; rerun against a stable baseline")
 	}
+	r.progress(fmt.Sprintf("Preparation complete: %d changed files; applicability: %s", m.FileCount, m.Applicability))
 	return m, nil
 }
 
@@ -272,6 +307,21 @@ func (r *runner) get(endpoint, accept string) ([]byte, http.Header, error) {
 		return nil
 	}
 	resp, err := client.Do(req)
+	// All review data comes from the public freebsd/freebsd-src repository.
+	// A stale inherited token must not prevent access that works anonymously.
+	publicGitHub := u.Host == "api.github.com" && strings.HasPrefix(u.Path, "/repos/freebsd/freebsd-src/")
+	if err == nil && resp.StatusCode == http.StatusUnauthorized && publicGitHub && req.Header.Get("Authorization") != "" {
+		_ = resp.Body.Close()
+		r.cfg.GitHubToken = ""
+		req.Header.Del("Authorization")
+		warning := "GitHub rejected the configured token (HTTP 401); retrying anonymously with lower API rate limits. Check GITHUB_TOKEN/GH_TOKEN."
+		if r.m != nil {
+			r.m.Warnings = append(r.m.Warnings, warning)
+		}
+		r.progress(warning)
+		// Retry once under the original timeout. Later requests stay anonymous.
+		resp, err = client.Do(req)
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("GET %s: %w", endpoint, err)
 	}
@@ -279,7 +329,7 @@ func (r *runner) get(endpoint, accept string) ([]byte, http.Header, error) {
 	// best effort, including when rejecting a response before reading it.
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("GET %s: HTTP %d (check access, rate limits, or GITHUB_TOKEN)", endpoint, resp.StatusCode)
+		return nil, nil, fmt.Errorf("GET %s: HTTP %d (check access, rate limits, or GITHUB_TOKEN/GH_TOKEN)", endpoint, resp.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, r.cfg.MaxBytes+1))
 	if err != nil {

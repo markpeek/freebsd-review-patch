@@ -343,6 +343,103 @@ func TestRelativeTemporaryDirectory(t *testing.T) {
 	}
 }
 
+func TestGitHubRejectedTokenFallback(t *testing.T) {
+	const token = "rejected-test-token"
+	var authenticated, anonymous atomic.Int32
+	cfg := testConfig(t, func(w http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Authorization") != "" {
+			authenticated.Add(1)
+			if req.Header.Get("Authorization") != "Bearer "+token {
+				t.Error("unexpected authentication header")
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = fmt.Fprint(w, token) // Rejected response bodies must not enter diagnostics.
+			return
+		}
+		anonymous.Add(1)
+		githubHandler(w, req)
+	})
+	cfg.GitHubToken = token
+	var progress []string
+	cfg.Progress = func(message string) { progress = append(progress, message) }
+	m, err := Run(context.Background(), cfg)
+	if m != nil {
+		cleanupArtifacts(t, m)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.State != "ready" || authenticated.Load() != 1 || anonymous.Load() < 2 {
+		t.Fatalf("fallback did not persist: state=%s, authenticated=%d, anonymous=%d", m.State, authenticated.Load(), anonymous.Load())
+	}
+	if len(m.Warnings) != 1 || !strings.Contains(m.Warnings[0], "HTTP 401") || !strings.Contains(m.Warnings[0], "anonymously") {
+		t.Fatalf("missing token warning: %v", m.Warnings)
+	}
+	if strings.Count(strings.Join(progress, "\n"), m.Warnings[0]) != 1 {
+		t.Fatalf("expected one progress warning: %v", progress)
+	}
+	manifest, err := os.ReadFile(m.ManifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(manifest, []byte("HTTP 401")) || bytes.Contains(manifest, []byte(token)) || strings.Contains(strings.Join(progress, "\n"), token) {
+		t.Fatal("token warning was not saved or exposed the credential")
+	}
+}
+
+func TestHTTPAuthenticationRetryLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name, endpoint, token string
+		statuses              []int
+		authenticated         []bool
+	}{
+		{"valid token", githubAPI + "/pulls/42", "valid-test-token", []int{200}, []bool{true}},
+		{"anonymous unauthorized", githubAPI + "/pulls/42", "", []int{401}, []bool{false}},
+		{"forbidden", githubAPI + "/pulls/42", "test-token", []int{403}, []bool{true}},
+		{"rate limited", githubAPI + "/pulls/42", "test-token", []int{429}, []bool{true}},
+		{"retry unauthorized", githubAPI + "/pulls/42", "test-token", []int{401, 401}, []bool{true, false}},
+		{"retry forbidden", githubAPI + "/pulls/42", "test-token", []int{401, 403}, []bool{true, false}},
+		{"other repository", "https://api.github.com/repos/other/private/pulls/42", "test-token", []int{401}, []bool{true}},
+		{"Differential unauthorized", "https://reviews.freebsd.org/D42", "test-token", []int{401}, []bool{false}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requests atomic.Int32
+			cfg := testConfig(t, func(w http.ResponseWriter, req *http.Request) {
+				i := int(requests.Add(1)) - 1
+				if i >= len(tc.statuses) {
+					t.Error("unexpected retry")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if (req.Header.Get("Authorization") != "") != tc.authenticated[i] {
+					t.Error("unexpected authentication state")
+				}
+				if req.Method != http.MethodGet || req.Header.Get("Accept") != "application/vnd.github.diff" {
+					t.Error("request method or media type changed")
+				}
+				w.WriteHeader(tc.statuses[i])
+			})
+			cfg.GitHubToken = tc.token
+			r := &runner{ctx: context.Background(), cfg: cfg, m: &Manifest{}}
+			_, _, err := r.get(tc.endpoint, "application/vnd.github.diff")
+			if requests.Load() != int32(len(tc.statuses)) {
+				t.Fatalf("expected %d requests, got %d", len(tc.statuses), requests.Load())
+			}
+			status := tc.statuses[len(tc.statuses)-1]
+			if status == http.StatusOK {
+				if err != nil || r.cfg.GitHubToken != tc.token {
+					t.Fatalf("valid token was not preserved: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("HTTP %d", status)) {
+				t.Fatalf("missing final HTTP error: %v", err)
+			}
+			if (len(r.m.Warnings) == 1) != (len(tc.statuses) == 2) {
+				t.Fatalf("unexpected warnings: %v", r.m.Warnings)
+			}
+		})
+	}
+}
+
 func TestReadOnlyHTTPAndLimits(t *testing.T) {
 	for _, scenario := range []string{"rate limit", "oversized", "redirect"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -443,6 +540,13 @@ func TestPatchOperations(t *testing.T) {
 			}
 			if data, err := os.ReadFile(filepath.Join(cfg.Repo, "file.txt")); err != nil || string(data) != originalFile {
 				t.Fatal("original checkout changed")
+			}
+			loaded, err := LoadManifest(m.ManifestPath, cfg.MaxBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := VerifyBaseline(context.Background(), loaded, cfg.Timeout, cfg.MaxBytes); err != nil {
+				t.Fatalf("proposed %s workspace failed hash verification: %v", item.name, err)
 			}
 		})
 	}
@@ -568,6 +672,28 @@ func TestSnapshotDisabled(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(m.Directory, "proposed")); !os.IsNotExist(err) {
 		t.Fatalf("unexpected workspace: %v", err)
+	}
+}
+
+func TestPreparationProgress(t *testing.T) {
+	cfg := testConfig(t, githubHandler)
+	var messages []string
+	cfg.Progress = func(message string) { messages = append(messages, message) }
+	m, err := Run(context.Background(), cfg)
+	if m != nil {
+		cleanupArtifacts(t, m)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress := strings.Join(messages, "\n")
+	for _, phase := range []string{"baseline", "Fetching GitHub PR #42", "review context", "applicability", "isolated workspace", "Preparation complete"} {
+		if !strings.Contains(progress, phase) {
+			t.Errorf("missing progress for %s: %s", phase, progress)
+		}
+	}
+	if strings.Contains(progress, "@@ -1") {
+		t.Fatal("progress included patch contents")
 	}
 }
 

@@ -10,10 +10,10 @@ build:
 	CGO_ENABLED=0 $(GO) build -trimpath -o bin/freebsd-review-prepare ./cmd/freebsd-review-prepare
 
 fmt:
-	$(GOFMT) -w cmd internal
+	$(GOFMT) -w cmd internal skills
 
 fmt-check:
-	@unformatted=$$($(GOFMT) -l cmd internal) || exit $$?; \
+	@unformatted=$$($(GOFMT) -l cmd internal skills) || exit $$?; \
 	if [ -n "$$unformatted" ]; then \
 		printf '%s\n' "$$unformatted"; \
 		printf '%s\n' 'Run make fmt to format these files.'; \
@@ -21,10 +21,10 @@ fmt-check:
 	fi
 
 test:
-	FREEBSD_REVIEW_LIVE_REPO= $(GO) test ./...
+	FREEBSD_REVIEW_LIVE_REPO= FREEBSD_REVIEW_LIVE_REVIEWER= $(GO) test ./...
 
 test-race:
-	FREEBSD_REVIEW_LIVE_REPO= $(GO) test -race ./...
+	FREEBSD_REVIEW_LIVE_REPO= FREEBSD_REVIEW_LIVE_REVIEWER= $(GO) test -race ./...
 
 vet:
 	$(GO) vet ./...

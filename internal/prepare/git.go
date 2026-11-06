@@ -291,6 +291,7 @@ func (r *runner) checkPatch() error {
 		return err
 	}
 	if r.cfg.Snapshot {
+		r.progress("Reconstructing the proposed files in an isolated workspace...")
 		if err := r.snapshot(paths, strip); err != nil {
 			r.m.Warnings = append(r.m.Warnings, "workspace unavailable: "+err.Error())
 		}
@@ -376,6 +377,11 @@ func (r *runner) snapshot(paths map[string]bool, strip string) error {
 	if _, err := r.git(dir, "apply", strip, "--whitespace=nowarn", "--", r.m.Patch); err != nil {
 		return err
 	}
+	files, err := workspaceFiles(r.ctx, dir, r.cfg.MaxBytes)
+	if err != nil {
+		return err
+	}
 	r.m.Workspace = dir
+	r.m.WorkspaceFiles = files
 	return nil
 }
