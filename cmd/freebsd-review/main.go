@@ -1,4 +1,4 @@
-// freebsd-review-prepare fetches and checks a FreeBSD review, optionally running
+// freebsd-review fetches and checks a FreeBSD review, optionally running
 // a headless reviewer. Reviews print Markdown by default; --json emits a manifest.
 package main
 
@@ -18,7 +18,7 @@ import (
 )
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	flags := pflag.NewFlagSet("freebsd-review-prepare", pflag.ContinueOnError)
+	flags := pflag.NewFlagSet("freebsd-review", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var cfg prepare.Config
 	var reviewCfg review.Config
@@ -36,8 +36,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	jsonOutput := flags.Bool("json", false, "emit the compact JSON manifest instead of the Markdown review")
 	help := flags.BoolP("help", "h", false, "show usage")
 	flags.Usage = func() {
-		_, _ = fmt.Fprintln(stderr, "Usage: freebsd-review-prepare [options] D12345 | 'PR #12345' | review/PR-URL")
-		_, _ = fmt.Fprintln(stderr, "       freebsd-review-prepare --manifest PATH --reviewer codex|claude [options]")
+		_, _ = fmt.Fprintln(stderr, "Usage: freebsd-review [options] D12345 | 'PR #12345' | review/PR-URL")
+		_, _ = fmt.Fprintln(stderr, "       freebsd-review --manifest PATH --reviewer codex|claude [options]")
 		_, _ = fmt.Fprintln(stderr, "Prints Markdown for headless reviews, or a JSON manifest with --json or preparation-only runs.")
 		flags.PrintDefaults()
 	}
@@ -77,7 +77,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	progress := func(message string) {
-		_, _ = fmt.Fprintln(stderr, "freebsd-review-prepare:", message)
+		_, _ = fmt.Fprintln(stderr, "freebsd-review:", message)
 	}
 	if !*quiet {
 		cfg.Progress, reviewCfg.Progress = progress, progress
@@ -110,7 +110,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if err != nil {
-		_, _ = fmt.Fprintln(stderr, "freebsd-review-prepare:", err)
+		_, _ = fmt.Fprintln(stderr, "freebsd-review:", err)
 		if manifest != nil {
 			_, _ = fmt.Fprintln(stderr, "Artifacts:", manifest.ManifestPath)
 			if manifest.Analysis != nil {

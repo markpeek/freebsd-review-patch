@@ -10,8 +10,8 @@ Differential reviews from reviews.freebsd.org and GitHub pull requests in
 - [freebsd-review-patch](skills/freebsd-review-patch/SKILL.md) describes how
   to fetch and review patches from either source and report actionable
   findings.
-- [freebsd-review-prepare](cmd/freebsd-review-prepare) is an optional Go
-  helper that prepares review artifacts and returns a compact JSON manifest.
+- [freebsd-review](cmd/freebsd-review) is an optional Go
+  helper that prepares artifacts and optionally runs headless code reviews.
 
 ## Installation
 
@@ -56,7 +56,7 @@ Claude Code uses the metadata and instructions in `SKILL.md`. The included
 `agents/openai.yaml` provides OpenAI-specific interface metadata and can
 remain in the copied directory.
 
-### Optional preparation helper
+### Optional review helper
 
 The skill works with or without the helper. To build it, use Go 1.25 or
 later from this repository's root:
@@ -64,11 +64,11 @@ later from this repository's root:
 ```sh
 make build
 mkdir -p ~/.local/bin
-install -m 755 bin/freebsd-review-prepare ~/.local/bin/
+install -m 755 bin/freebsd-review ~/.local/bin/
 ```
 
 Ensure `~/.local/bin` is on PATH in your agent's environment. Alternatively,
-place the binary at `scripts/freebsd-review-prepare` inside the installed
+place the binary at `scripts/freebsd-review` inside the installed
 skill directory. Codex and Claude Code can use the same binary on the same
 OS and architecture.
 
@@ -134,8 +134,8 @@ requires a separate request.
 Run the helper directly against a FreeBSD source checkout:
 
 ```sh
-freebsd-review-prepare --repo /path/to/freebsd-src D53200
-freebsd-review-prepare --repo /path/to/freebsd-src 'PR #2533'
+freebsd-review --repo /path/to/freebsd-src D53200
+freebsd-review --repo /path/to/freebsd-src 'PR #2533'
 ```
 
 Full review/PR URLs are also accepted. A Differential URL with
@@ -157,7 +157,7 @@ HTTP 403 and other errors are reported without this retry. To ignore both
 token variables explicitly, run:
 
 ```sh
-env -u GITHUB_TOKEN -u GH_TOKEN freebsd-review-prepare --repo /path/to/freebsd-src 'PR #2527'
+env -u GITHUB_TOKEN -u GH_TOKEN freebsd-review --repo /path/to/freebsd-src 'PR #2527'
 ```
 
 Preparation-only runs print one JSON manifest containing artifact paths, version
@@ -184,7 +184,7 @@ the checkout. The directory must not already exist. `--snapshot=false`
 skips workspace reconstruction. `--timeout` defaults to 60 seconds per
 request/command, and `--max-bytes` defaults to 64 MiB per HTTP response,
 paginated API list, Git command output, or combined source snapshot.
-Run `freebsd-review-prepare --help` for all options.
+Run `freebsd-review --help` for all options.
 
 A patch conflict is a successful preparation with
 `"applicability":"conflicts"`; inspect its diagnostics before drawing
@@ -205,8 +205,8 @@ Add `--reviewer codex` or `--reviewer claude` to prepare artifacts and then
 run a non-interactive code review:
 
 ```sh
-freebsd-review-prepare --repo /path/to/freebsd-src --reviewer codex D53200
-freebsd-review-prepare --repo /path/to/freebsd-src --reviewer claude 'PR #2533'
+freebsd-review --repo /path/to/freebsd-src --reviewer codex D53200
+freebsd-review --repo /path/to/freebsd-src --reviewer claude 'PR #2533'
 ```
 
 Headless reviews print the Markdown report to stdout by default, including
@@ -215,7 +215,7 @@ print the compact manifest instead, with paths to the saved Markdown report
 and structured findings:
 
 ```sh
-freebsd-review-prepare --repo /path/to/freebsd-src --reviewer codex --json 'PR #2533'
+freebsd-review --repo /path/to/freebsd-src --reviewer codex --json 'PR #2533'
 ```
 
 Progress goes to stderr, including preparation stages, artifact locations,
@@ -224,7 +224,7 @@ or `--quiet` to suppress progress; results and errors remain visible. For
 example, to capture a report without progress messages:
 
 ```sh
-freebsd-review-prepare --repo /path/to/freebsd-src --reviewer claude -q 'PR #2533' > review.md
+freebsd-review --repo /path/to/freebsd-src --reviewer claude -q 'PR #2533' > review.md
 ```
 
 Output selection affects presentation only. Both backends still produce
@@ -238,7 +238,7 @@ review existing artifacts without another download, provide their saved
 manifest instead of an identifier:
 
 ```sh
-freebsd-review-prepare --manifest /tmp/freebsd-review-example/manifest.json --reviewer codex
+freebsd-review --manifest /tmp/freebsd-review-example/manifest.json --reviewer codex
 ```
 
 `--manifest` uses the recorded source checkout and cannot be combined with

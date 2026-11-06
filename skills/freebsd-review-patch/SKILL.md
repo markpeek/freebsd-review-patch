@@ -28,15 +28,15 @@ missing result does not mean no defects were found.
 
 ### Optional helper
 
-If `freebsd-review-prepare` is on PATH, use it to perform the mechanical
-preparation in one call. An executable at `scripts/freebsd-review-prepare`
+If `freebsd-review` is on PATH, use it to perform the mechanical
+preparation in one call. An executable at `scripts/freebsd-review`
 relative to this skill's directory can also be used. The helper requires
 Git and HTTPS access, but no Go installation at runtime.
 
 For example, using the actual source checkout and requested identifier:
 
 ```sh
-freebsd-review-prepare --repo /path/to/freebsd-src 'PR #12345'
+freebsd-review --repo /path/to/freebsd-src 'PR #12345'
 ```
 
 The helper emits a compact JSON manifest and saves detailed artifacts
@@ -63,8 +63,8 @@ outside the checkout. Read the manifest first:
 When the user requests a headless reviewer, select it explicitly:
 
 ```sh
-freebsd-review-prepare --repo /path/to/freebsd-src --reviewer codex --json 'PR #12345'
-freebsd-review-prepare --manifest /path/to/manifest.json --reviewer claude --json
+freebsd-review --repo /path/to/freebsd-src --reviewer codex --json 'PR #12345'
+freebsd-review --manifest /path/to/manifest.json --reviewer claude --json
 ```
 
 The selected CLI must be installed and authenticated. `--model` overrides

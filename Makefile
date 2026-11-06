@@ -7,7 +7,7 @@ GOLANGCI_LINT ?= golangci-lint
 all: build
 
 build:
-	CGO_ENABLED=0 $(GO) build -trimpath -o bin/freebsd-review-prepare ./cmd/freebsd-review-prepare
+	CGO_ENABLED=0 $(GO) build -trimpath -o bin/freebsd-review ./cmd/freebsd-review
 
 fmt:
 	$(GOFMT) -w cmd internal skills

@@ -15,7 +15,7 @@ unrelated work, including untracked files. Read applicable nested
 - `skills/freebsd-review-patch/references/`: manual preparation fallback.
 - `skills/freebsd-review-patch/agents/openai.yaml`: OpenAI interface
   metadata for the skill.
-- `cmd/freebsd-review-prepare/`: command-line entry point and flag parsing.
+- `cmd/freebsd-review/`: command-line entry point and flag parsing.
 - `internal/prepare/`: review retrieval, baseline capture, patch checks,
   isolated reconstruction, and tests.
 - `internal/review/`: optional headless CLI adapters, structured findings,

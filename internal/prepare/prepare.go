@@ -288,7 +288,7 @@ func (r *runner) get(endpoint, accept string) ([]byte, http.Header, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	req.Header.Set("User-Agent", "freebsd-review-prepare/1")
+	req.Header.Set("User-Agent", "freebsd-review/1")
 	req.Header.Set("Accept", accept)
 	if u.Host == "api.github.com" {
 		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
